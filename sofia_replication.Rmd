@@ -1,0 +1,17 @@
+```{r setup, include=FALSE}
+library(here)
+library(scales)
+library(tidyverse)
+
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-counts}
+install.packages("here")
+library(here)
+library(readr)
+notes <-read_tsv("C:/Users/ds3/Downloads/community-notes-2025-group-4/data/notes.tsv")
+
+```
