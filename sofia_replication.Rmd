@@ -13,5 +13,18 @@ install.packages("here")
 library(here)
 library(readr)
 notes <-read_tsv("C:/Users/ds3/Downloads/community-notes-2025-group-4/data/notes.tsv")
+#9360 notes which is not 11000 so... a little less than
+nrow(notes)
+```
 
+```{r-data-cleaning}
+notes <- notes |> mutate(datetime = as.POSIXct(createdAtMillis / 1000, origin = "1970-01-01", tz = "UTC")) #convert to a datetime format from milliseconds
+notes <- notes |> mutate(is_misleading = (misleadingOther == 1 | misleadingFactualError == 1 | misleadingManipulatedMedia ==1 | misleadingOutdatedInformation ==1 | misleadingMissingImportantContext == 1 | misleadingUnverifiedClaimAsFact == 1 | misleadingSatire == 1 ) )
+
+```
+plot figure 2 misleading vs not misleading notes then by trustworthy and not trustworthy sources
+```{r-plot-figure}
+notes <- notes |> pivot_longer(names_to = "Variable", values_to = "Value")
+ggplot(notes, aes(x=is_misleading) ) +
+geom_histogram()
 ```
