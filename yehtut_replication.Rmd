@@ -1,0 +1,165 @@
+
+## Setting up the environment
+```{r setup, include=FALSE}
+install.packages("here")
+library(here)
+library(readr)
+library(here)
+library(scales)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading notes and ratings
+```{r load-counts}
+
+notes <- read_tsv("./data/notes.tsv")
+head(notes)
+nrow(notes)
+colnames(notes)
+
+ratings <- read_tsv("./data/ratings.tsv")
+nrow(ratings)
+head(ratings)
+
+```
+
+
+## joining the notes and ratings
+
+```{r join-notes-ratings}
+notes_ratings <- left_join(notes, ratings, by="noteId")
+notes_ratings
+
+```
+
+
+## Figure 2 Plot
+```{r figure-2}
+
+```
+
+
+## Figure 3 Plot
+```{r figure-3}
+
+notes |>
+    select("misleadingOther", "misleadingFactualError", "misleadingManipulatedMedia", "misleadingOutdatedInformation","misleadingMissingImportantContext", "misleadingUnverifiedClaimAsFact", "misleadingSatire")  |>
+    rename("Other" = "misleadingOther", "Factual error" = "misleadingFactualError", "Manipulated media" = "misleadingManipulatedMedia", "Outdated information" = "misleadingOutdatedInformation", "Missing important contex" = "misleadingMissingImportantContext", "Unverified claim as fact" = "misleadingUnverifiedClaimAsFact", "Satire" = "misleadingSatire")|>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkred") +
+    xlab("Number of Birdwatch Notes") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 5500, by = 2000))
+```
+
+
+
+## Figure 4 Plot
+```{r figure-4}
+colnames(notes)
+
+notes |>
+  select("notMisleadingOther", "notMisleadingFactuallyCorrect", "notMisleadingOutdatedButNotWhenWritten","notMisleadingClearlySatire", "notMisleadingPersonalOpinion") |>
+  rename("Other" = "notMisleadingOther", "Factually correct" = "notMisleadingFactuallyCorrect", "Outdated but not when written" = "notMisleadingOutdatedButNotWhenWritten", "Clearly satire" = "notMisleadingClearlySatire", "Personal opinion" = "notMisleadingPersonalOpinion") |>
+  colSums() |>
+  tibble::enframe(name = "category", value = "total_count") |>
+  ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+  geom_bar(stat = "identity", fill="blue") +
+  xlab("Number of Birdwatch Notes") +
+  ylab("") +
+  scale_x_continuous(breaks = seq(0, 1000, by = 200))
+
+
+```
+
+
+
+
+## Figure 5c Plot
+```{r figure-5c}
+
+
+# generating word count from summary
+notes_classification_word_count <- notes |>
+  mutate(word_count = str_count(notes$summary, " ")) |>
+  select(classification, word_count) |> mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  ))
+
+
+notes_classification_word_count  |>
+  drop_na() |>
+  arrange(word_count) |>
+  group_by(classification) |>
+  mutate(total_each_category = sum(word_count)) |>
+  mutate(fraction_word_count = word_count/total_each_category) |>
+  mutate(cdf_fraction = cumsum(fraction_word_count)) |>
+  mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=comma) 
+
+
+
+  
+
+```
+
+
+
+
+## Figure 7 Plot
+```{r figure-7}
+
+
+```
+
+
+## Figure 8 Plot
+```{r figure-8}
+
+```
+
+## Figure 9 Plot
+```{r figure-9}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
