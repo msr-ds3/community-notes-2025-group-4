@@ -84,33 +84,62 @@ notes |>
 
 
 ## Figure 5c Plot
-```{r figure-5c}
+```{r figure-5c-incorrect}
 
 
 # generating word count from summary
-notes_classification_word_count <- notes |>
-  mutate(word_count = str_count(notes$summary, '\\w+')) |>
-  select(classification, word_count) |> mutate(classification = case_when(
-    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
-    classification == "NOT_MISLEADING" ~ "Not Misleading"
-  ))
+# notes_classification_word_count <- notes |>
+#   mutate(word_count = str_count(notes$summary, '\\w+')) |>
+#   select(classification, word_count) |> mutate(classification = case_when(
+#     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+#     classification == "NOT_MISLEADING" ~ "Not Misleading"
+#   ))
 
-notes_classification_word_count  |>
-  drop_na() |>
-  arrange(word_count) |>
-  group_by(classification) |>
-  mutate(total_each_category = sum(word_count)) |>
-  mutate(fraction_word_count = word_count/total_each_category) |>
-  mutate(cdf_fraction = cumsum(fraction_word_count)) |>
-  mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
-  filter(ccdf_percent > 0) |>
-  ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
-  geom_line() +
-  scale_y_log10(limits = c(0.01, 100), label=comma) 
+# notes_classification_word_count  |>
+#   drop_na() |>
+#   arrange(word_count) |>
+#   group_by(classification) |>
+#   mutate(total_each_category = sum(word_count)) |>
+#   mutate(fraction_word_count = word_count/total_each_category) |>
+#   mutate(cdf_fraction = cumsum(fraction_word_count)) |>
+#   mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+#   filter(ccdf_percent > 0) |>
+#   ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
+#   geom_line() +
+#   scale_y_log10(limits = c(0.01, 100), label=comma) 
 
 
 
   
+
+```
+
+```{r figure-5c-correct}
+# generating word count from summary
+notes_classification_word_count <- notes |>
+  mutate(word_count = str_count(summary, '\\w+')) |>
+  select(classification, word_count) |>
+  mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  ))
+
+notes_classification_word_count |>
+  drop_na(word_count) |>
+  group_by(classification) |>
+  arrange(word_count) |>
+  # Calculate CCDF using the rank of each note
+  mutate(n = n(),
+         rank = row_number(),
+         ccdf_percent = (1 - (rank - 1) / n) * 100) |>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=scales::comma) +
+  labs(
+    x = "Word Count",
+    y = "CCDF (%)"
+  )
 
 ```
 
@@ -120,15 +149,12 @@ notes_classification_word_count  |>
 ## Figure 7 Plots
 
 ```{r figure-7a}
- |>
-  select(noteId, helpful, notHelpful) |>
-  group_by(noteId) |>
-  mutate(votes_per_notes = n()) |>ratings
-  arrange(noteId) 
-  
-  
+
 ```
 
+
+
+ 
 
 ```{r figure-7b}
 
@@ -150,26 +176,44 @@ joined_raings_notes |>
     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
     classification == "NOT_MISLEADING" ~ "Not Misleading"
   )) |>
-  arrange(votes_per_note) |>
   group_by(classification) |>
-  mutate(total_votes_each_category = sum(votes_per_note)) |>
-  mutate(fraction_votes = votes_per_note/total_votes_each_category) |>
-  mutate(cdf_fraction = cumsum(fraction_votes)) |>
-  mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+  arrange(votes_per_note) |>
+  mutate(n = n(),
+         rank = row_number(),
+         ccdf_percent = (1 - (rank - 1) / n) * 100) |>
   filter(ccdf_percent > 0) |>
   ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
   geom_line() +
-  scale_y_log10(limits = c(0.01, 100), label=comma) 
+  scale_y_log10(limits = c(0.01, 100), label=scales::comma)
+
+
+
+# joined_raings_notes |>
+#   select(classification, votes_per_note) |>
+#   mutate(classification = case_when(
+#     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+#     classification == "NOT_MISLEADING" ~ "Not Misleading"
+#   )) |>
+#   arrange(votes_per_note) |>
+#   group_by(classification) |>
+#   mutate(total_votes_each_category = sum(votes_per_note)) |>
+#   mutate(fraction_votes = votes_per_note/total_votes_each_category) |>
+#   mutate(cdf_fraction = cumsum(fraction_votes)) |>
+#   mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+#   filter(ccdf_percent > 0) |>
+#   ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
+#   geom_line() +
+#   scale_y_log10(limits = c(0.01, 100), label=comma) 
   
   
 
+```
 
+```{r }
 
 
 
 ```
-
-
 
 
 
