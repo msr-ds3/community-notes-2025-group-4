@@ -1,7 +1,7 @@
 
 ## Setting up the environment
 ```{r setup, include=FALSE}
-install.packages("here")
+
 library(here)
 library(readr)
 library(here)
@@ -89,12 +89,11 @@ notes |>
 
 # generating word count from summary
 notes_classification_word_count <- notes |>
-  mutate(word_count = str_count(notes$summary, " ")) |>
+  mutate(word_count = str_count(notes$summary, '\\w+')) |>
   select(classification, word_count) |> mutate(classification = case_when(
     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
     classification == "NOT_MISLEADING" ~ "Not Misleading"
   ))
-
 
 notes_classification_word_count  |>
   drop_na() |>
@@ -118,21 +117,104 @@ notes_classification_word_count  |>
 
 
 
-## Figure 7 Plot
-```{r figure-7}
+## Figure 7 Plots
+
+```{r figure-7a}
+ |>
+  select(noteId, helpful, notHelpful) |>
+  group_by(noteId) |>
+  mutate(votes_per_notes = n()) |>ratings
+  arrange(noteId) 
+  
+  
+```
+
+
+```{r figure-7b}
+
+colnames(notes)
+colnames(ratings)
+
+ratings_with_votes_per_note <- ratings |>
+  select(noteId) |>
+  group_by(noteId) |>
+  summarize(votes_per_note = n())
+
+max(ratings_with_votes_per_note$votes_per_note)
+
+joined_raings_notes <- inner_join(notes, ratings_with_votes_per_note, by = "noteId")
+
+joined_raings_notes |>
+  select(classification, votes_per_note) |>
+  mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  )) |>
+  arrange(votes_per_note) |>
+  group_by(classification) |>
+  mutate(total_votes_each_category = sum(votes_per_note)) |>
+  mutate(fraction_votes = votes_per_note/total_votes_each_category) |>
+  mutate(cdf_fraction = cumsum(fraction_votes)) |>
+  mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=comma) 
+  
+  
+
+
+
 
 
 ```
+
+
+
+
+
 
 
 ## Figure 8 Plot
 ```{r figure-8}
+colnames(ratings)
+
+
+# doesn't include Unbiased language as no one chooses this opiton
+ratings |>
+    select("helpfulOther", "helpfulInformative", "helpfulClear", "helpfulEmpathetic", "helpfulGoodSources", "helpfulUniqueContext", "helpfulAddressesClaim", "helpfulImportantContext")  |>
+    rename("Other" = "helpfulOther", "Informative" = "helpfulInformative", "Clear" = "helpfulClear", "Empathetic" = "helpfulEmpathetic", "Good sources" = "helpfulGoodSources", "Unique contex" = "helpfulUniqueContext", "Addresses claim" = "helpfulAddressesClaim", "Important context" = "helpfulImportantContext")|>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkblue") +
+    xlab("Number of Ratings") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 16000, by = 5000))
 
 ```
 
 ## Figure 9 Plot
-```{r figure-9}
 
+```{r figure-9}
+colnames(ratings)
+
+# notHelpfulOpinionSpeculation is not included because no one chooses this option
+
+ratings |>
+    select("notHelpfulOther", "notHelpfulIncorrect", "notHelpfulSourcesMissingOrUnreliable", "notHelpfulOpinionSpeculationOrBias", "notHelpfulMissingKeyPoints", "notHelpfulOutdated", "notHelpfulHardToUnderstand", "notHelpfulArgumentativeOrBiased", "notHelpfulOffTopic", "notHelpfulSpamHarassmentOrAbuse", "notHelpfulIrrelevantSources")  |>
+     rename_with(~ .x |>
+    str_remove("notHelpful") |>
+    str_replace_all("([A-Z])", " \\1") |>
+    str_to_sentence()
+      ) |>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkred") +
+    xlab("Number of Ratings") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 16000, by = 5000))
 ```
 
 
