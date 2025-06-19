@@ -13,6 +13,7 @@ install.packages("here")
 library(here)
 library(readr)
 notes <-read_tsv("C:/Users/ds3/Downloads/community-notes-2025-group-4/data/notes.tsv")
+ratings <- read_tsv("C:/Users/ds3/Downloads/community-notes-2025-group-4/data/ratings.tsv")
 #9360 notes which is not 11000 so... a little less than
 nrow(notes)
 ```
@@ -34,4 +35,45 @@ ggplot(notes, aes(x = is_misleading, fill = trustworthySources)) +
   scale_x_discrete(label = labels) +
   scale_fill_manual(labels=c("No trustworthy sources", "trustworthy sources"), values = c("yellow", "blue"))
 
+```
+
+figure 7 a and b 
+```{r-fig7}
+#ccdf
+colnames(notes)
+colnames(ratings)
+ 
+ratings_with_votes_per_note <- ratings |>
+  select(noteId) |>
+  group_by(noteId) |>
+  summarize(votes_per_note = n())
+
+joined_raings_notes <- inner_join(notes, ratings_with_votes_per_note, by = "noteId")
+ 
+joined_raings_notes |>
+  select(classification, votes_per_note) |>
+  arrange(votes_per_note) |>
+  group_by(classification) |>
+  mutate(total_votes_each_category = sum(votes_per_note)) |>
+  mutate(fraction_votes = votes_per_note/total_votes_each_category) |>
+  mutate(cdf_fraction = cumsum(fraction_votes)) |>
+  mutate(ccdf_percent = (1 - cdf_fraction) * 100)|>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=comma) 
+
+```
+
+```{r-fig7a}
+joined_ratings_notes <- merge(notes, ratings, by = "noteId")
+ratio <- joined_ratings_notes |> group_by(noteId) |> summarize(helpful_count = sum(helpful),total_votes = n()) |> select(noteId, is_misleading, helpful_count, unhelpful_count, total_votes)
+ratio <- ratio |> mutate(ratio_helpful = helpful_count/total_votes) |> arrange(ratio_helpful)
+ratio_ccdf <- ratio |>  mutate(cdf_fraction = cumsum(ratio_helpful)) |> mutate(ccdf_fraction = (1- cdf_fraction) * 100) |> filter(ccdf_fraction > 0)
+
+
+
+ggplot(ratio_ccdf, aes(x=ratio_helpful, y=ccdf_fraction, color=is_misleading)) +
+geom_line() +
+scale_y_log10(limits = c(0.01, 100), label=comma)
 ```
