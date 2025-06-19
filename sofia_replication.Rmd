@@ -37,8 +37,8 @@ ggplot(notes, aes(x = is_misleading, fill = trustworthySources)) +
 
 ```
 
-figure 7 a and b 
-```{r-fig7}
+figure 7 a 
+```{r-fig7a}
 #ccdf
 colnames(notes)
 colnames(ratings)
@@ -64,16 +64,126 @@ joined_raings_notes |>
   scale_y_log10(limits = c(0.01, 100), label=comma) 
 
 ```
-
 ```{r-fig7a}
-joined_ratings_notes <- merge(notes, ratings, by = "noteId")
-ratio <- joined_ratings_notes |> group_by(noteId) |> summarize(helpful_count = sum(helpful),total_votes = n()) |> select(noteId, is_misleading, helpful_count, unhelpful_count, total_votes)
-ratio <- ratio |> mutate(ratio_helpful = helpful_count/total_votes) |> arrange(ratio_helpful)
-ratio_ccdf <- ratio |>  mutate(cdf_fraction = cumsum(ratio_helpful)) |> mutate(ccdf_fraction = (1- cdf_fraction) * 100) |> filter(ccdf_fraction > 0)
+ratings_2 <- ratings |> group_by(noteId) |> summarize(total_helpful = sum(helpful), total_unhelpful = sum(notHelpful)) |> mutate(total=total_helpful + total_unhelpful, ratio_helpful = total_helpful/total)
+ccdf_ratio <- inner_join(notes, ratings_2) |> group_by(classification) |> arrange(ratio_helpful) |> mutate(rank=min_rank(ratio_helpful), n=n() ccdf=(1-((rank-1)/n)) *100) |> filter(ccdf != "Invalid Number")
 
+ggplot(ccdf_ratio, aes(x=ratio_helpful, y=ccdf, color=classification)) + geom_line()
+```
+
+
+```{r-fig7a-badway}
+joined_ratings_notes <- merge(notes, ratings, by = "noteId")
+ratio <- joined_ratings_notes |> group_by(noteId, is_misleading) |> summarize(helpful_count = sum(helpful),total_votes = n()) |> select(noteId, is_misleading, helpful_count, total_votes)
+ratio <- ratio |> mutate(ratio_helpful = helpful_count/total_votes) |> arrange(ratio_helpful)
+ratio_ccdf <- ratio |> group_by(is_misleading) |> mutate(cdf_fraction = cumsum(ratio_helpful)/sum(ratio_helpful)) |> mutate(ccdf_fraction = (1- cdf_fraction) * 100) 
+ #|> filter(ccdf_fraction > 0)
 
 
 ggplot(ratio_ccdf, aes(x=ratio_helpful, y=ccdf_fraction, color=is_misleading)) +
 geom_line() +
 scale_y_log10(limits = c(0.01, 100), label=comma)
+```
+
+logistic regression stuff
+```{r-5c-yehtut-solution}
+#model <- glm(passed  ~ hours_studied, data=student_data, family=binomial)
+notes_classification_word_count <- notes |>
+  mutate(word_count = str_count(summary, '\\w+')) |>
+  select(classification, noteId, trustworthySources, word_count) |>
+  mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  ))
+
+notes_classification_word_count |>
+  drop_na(word_count) |>
+  group_by(classification) |>
+  arrange(word_count) |>
+  # Calculate CCDF using the rank of each note
+  mutate(n = n(),
+         rank = row_number(),
+         ccdf_percent = (1 - (rank - 1) / n) * 100) |>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=scales::comma) +
+  labs(
+    x = "Word Count",
+    y = "CCDF (%)"
+  )
+
+```
+load in the source tweet data for log reg tease.
+```{r-load-tweet-data}
+source_tweets <- get(load("C:/Users/ds3/Downloads/community-notes-2025-group-4/data/source_tweets.Rdata"))
+```
+
+```{r-logreg-features}
+#misleading
+  #classification in notes_classification_word_count
+#trustworthy sources
+  #trustworthySources in notes
+#text complexity -- not required 
+#sentiment -- not required
+#word count
+  #in notes_classification_word_count
+#account age
+  #source_account_created_at in source_tweets
+#followers
+  #source_followers_count in source_tweets
+#followees 
+  #source friend count in source_tweets
+#verified
+  #source_verified in source_tweets
+#i believe the depedent variable is helpful in ratings
+
+log_reg_ds <- ratings |> select(noteId, helpful)
+source_tweets_2 <- source_tweets |> select(noteId, source_account_created_at, source_followers_count, source_friends_count, source_verified )
+log_reg_ds <- inner_join(log_reg_ds, source_tweets_2, by="noteId")
+log_reg_ds <- inner_join(log_reg_ds, notes_classification_word_count)
+
+#rename to misleading
+log_reg_ds <- log_reg_ds |> rename(misleading = classification, verified = source_verified, followees = source_friends_count)
+#take source_account_created_at and make it age
+current_date <- Sys.Date()
+current_year <- format(current_date, "%Y")
+log_reg_ds <- log_reg_ds |> mutate(account_age = as.numeric(current_year) - as.numeric(year(log_reg_ds$source_account_created_at)))
+#drop na from all of them esp in source_tweets
+log_reg_ds <- drop_na(log_reg_ds)
+
+#made misleading into a binary variable
+log_reg_ds <- log_reg_ds |> mutate(misleading = if_else(misleading == "Misleading", 1, 0, ))
+#zstandardize all features
+log_reg_ds <- log_reg_ds |> mutate(across(c(source_followers_count,followees,word_count,account_age), scale))
+
+```
+the actual modeling
+```{r-logreg}
+library(broom)
+library(tidyverse)
+#model <- glm(passed  ~ hours_studied, data=student_data, family=binomial)
+model <- glm(helpful ~ misleading + trustworthySources + word_count + account_age + followees + source_followers_count + verified, data=log_reg_ds, family=binomial)
+tidy(model)
+
+#add predictions to data for plotting
+log_reg_ds <- log_reg_ds |> mutate(predicted_prob = predict(model, type="response"))
+```
+# plot the validate error, highlighting the value of k with the lowest average error
+plot_data <- data.frame(K, avg_validate_err, se_validate_err)
+ggplot(plot_data, aes(x=K, y=avg_validate_err)) +
+  geom_pointrange(aes(ymin=avg_validate_err - se_validate_err,
+                      ymax=avg_validate_err + se_validate_err,
+                      color=avg_validate_err == min(avg_validate_err))) +
+  geom_line(color = "red") +
+  scale_x_continuous(breaks=1:12) +
+  theme(legend.position="none") +
+  xlab('Polynomial Degree') +
+  ylab('RMSE on validation data')
+
+```{r-plot10}
+coef_vector <- coef(summary(model))[, "Estimate"]
+se_vector <- summary(model)$coefficients[, "Std. Error"]
+coef_names <- names(coef(model))
+plot_data <- data.frame(coef_names, )
 ```
