@@ -37,8 +37,8 @@ ggplot(notes, aes(x = is_misleading, fill = trustworthySources)) +
 
 ```
 
-figure 7 a and b 
-```{r-fig7}
+figure 7 a 
+```{r-fig7a}
 #ccdf
 colnames(notes)
 colnames(ratings)
@@ -64,13 +64,23 @@ joined_raings_notes |>
   scale_y_log10(limits = c(0.01, 100), label=comma) 
 
 ```
-
 ```{r-fig7a}
-joined_ratings_notes <- merge(notes, ratings, by = "noteId")
-ratio <- joined_ratings_notes |> group_by(noteId) |> summarize(helpful_count = sum(helpful),total_votes = n()) |> select(noteId, is_misleading, helpful_count, unhelpful_count, total_votes)
-ratio <- ratio |> mutate(ratio_helpful = helpful_count/total_votes) |> arrange(ratio_helpful)
-ratio_ccdf <- ratio |>  mutate(cdf_fraction = cumsum(ratio_helpful)) |> mutate(ccdf_fraction = (1- cdf_fraction) * 100) |> filter(ccdf_fraction > 0)
+ratings_2 <- ratings |> group_by(noteId) |> summarize(total_helpful = sum(helpful), total_unhelpful = sum(notHelpful)) |> mutate(total=total_helpful + total_unhelpful, ratio_helpful = total_helpful/total)
+ccdf_ratio <- inner_join(notes, ratings_2) |> group_by(classification) |> arrange(ratio_helpful) |> mutate(rank=min_rank(ratio_helpful), n=n() ccdf=(1-((rank-1)/n)) *100) |> filter(ccdf != "Invalid Number")
 
+ggplot(ccdf_ratio, aes(x=ratio_helpful, y=ccdf, color=classification)) + geom_line()
+```
+
+
+
+
+
+```{r-fig7a-badway}
+joined_ratings_notes <- merge(notes, ratings, by = "noteId")
+ratio <- joined_ratings_notes |> group_by(noteId, is_misleading) |> summarize(helpful_count = sum(helpful),total_votes = n()) |> select(noteId, is_misleading, helpful_count, total_votes)
+ratio <- ratio |> mutate(ratio_helpful = helpful_count/total_votes) |> arrange(ratio_helpful)
+ratio_ccdf <- ratio |> group_by(is_misleading) |> mutate(cdf_fraction = cumsum(ratio_helpful)/sum(ratio_helpful)) |> mutate(ccdf_fraction = (1- cdf_fraction) * 100) 
+ #|> filter(ccdf_fraction > 0)
 
 
 ggplot(ratio_ccdf, aes(x=ratio_helpful, y=ccdf_fraction, color=is_misleading)) +
