@@ -1,0 +1,277 @@
+
+# Replication of COmmunity-Based Fact-Checking on Twitter's Birdwatch Platform
+
+
+
+```{r setup, include=FALSE}
+# Setting up the environment
+library(here)
+library(readr)
+library(scales)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(broom)
+theme_set(theme_bw())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Loading notes and ratings
+```{r load-counts}
+notes <- read_tsv("./data/notes.tsv")
+ratings <- read_tsv("./data/ratings.tsv")
+```
+
+In notes, there are `r nrow(notes)` rows and in ratings, there are `r nrow(ratings)` rows.
+
+## Figure 2 Plot 
+Number of users who responded "Yes" to the question "Did you link to sources you believe most people would consider trustworthy?"
+
+```{r data-cleaning}
+notes <- notes |> 
+    mutate(datetime = as.POSIXct(createdAtMillis / 1000, origin = "1970-01-01", tz = "UTC")) #convert to a datetime format from milliseconds
+notes <- notes |> 
+    mutate(is_misleading = (misleadingOther == 1 | misleadingFactualError == 1 | misleadingManipulatedMedia ==1 | misleadingOutdatedInformation ==1 | misleadingMissingImportantContext == 1 | misleadingUnverifiedClaimAsFact == 1 | misleadingSatire == 1 ) )
+notes <- notes |>
+     mutate(is_notmisleading = (notMisleadingOther ==1 | notMisleadingFactuallyCorrect==1 | notMisleadingOutdatedButNotWhenWritten == 1 | notMisleadingClearlySatire==1 | notMisleadingPersonalOpinion ==1))
+```
+
+```{r figure-2}
+notes$trustworthySources <- as.factor(notes$trustworthySources)
+labels <- c("Misleading", "Not Misleading")
+ggplot(notes, aes(x = is_misleading, fill = trustworthySources)) +
+  geom_bar(stat = "count", position = "stack") +
+  coord_flip() +
+  theme(legend.title = element_blank()) +
+  theme(axis.title = element_blank()) +
+  scale_x_discrete(label = labels) +
+  scale_fill_manual(labels=c("No trustworthy sources", "trustworthy sources"), values = c("yellow", "blue"))
+
+```
+
+# Figure 3 Plot
+Number of Birdwatch notes per checkbox answer option in response to the question "Why do you believe this tweet may be misleading?"
+
+```{r figure-3}
+
+notes |>
+    select("misleadingOther", "misleadingFactualError", "misleadingManipulatedMedia", "misleadingOutdatedInformation","misleadingMissingImportantContext", "misleadingUnverifiedClaimAsFact", "misleadingSatire")  |>
+    rename("Other" = "misleadingOther", "Factual error" = "misleadingFactualError", "Manipulated media" = "misleadingManipulatedMedia", "Outdated information" = "misleadingOutdatedInformation", "Missing important contex" = "misleadingMissingImportantContext", "Unverified claim as fact" = "misleadingUnverifiedClaimAsFact", "Satire" = "misleadingSatire")|>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkred") +
+    xlab("Number of Birdwatch Notes") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 5500, by = 2000))
+```
+
+## Figure 4 Plot
+Number of Birdwatch notes per checkbox answer option in response to the question "Why do you believe this tweet is not misleading?"
+
+```{r figure-4}
+notes |>
+  select("notMisleadingOther", "notMisleadingFactuallyCorrect", "notMisleadingOutdatedButNotWhenWritten","notMisleadingClearlySatire", "notMisleadingPersonalOpinion") |>
+  rename("Other" = "notMisleadingOther", "Factually correct" = "notMisleadingFactuallyCorrect", "Outdated but not when written" = "notMisleadingOutdatedButNotWhenWritten", "Clearly satire" = "notMisleadingClearlySatire", "Personal opinion" = "notMisleadingPersonalOpinion") |>
+  colSums() |>
+  tibble::enframe(name = "category", value = "total_count") |>
+  ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+  geom_bar(stat = "identity", fill="blue") +
+  xlab("Number of Birdwatch Notes") +
+  ylab("") +
+  scale_x_continuous(breaks = seq(0, 1000, by = 200))
+
+
+```
+
+
+## Figure 5c Plot
+CCDFs for word count in text explanations of Birdwatch notes.
+
+```{r figure-5c}
+# generating word count from summary (add noteId and trustworthySources for the usage of plot 10)
+notes_classification_word_count <- notes |>
+  mutate(word_count = str_count(summary, '\\w+')) |>
+  select(noteId, classification, word_count, trustworthySources) |>
+  mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  ))
+
+notes_classification_word_count |>
+  drop_na(word_count) |>
+  group_by(classification) |>
+  arrange(word_count) |>
+  # Calculate CCDF using the rank of each note
+  mutate(n = n(),
+         rank = row_number(),
+         ccdf_percent = (1 - (rank - 1) / n) * 100) |>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = word_count, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=scales::comma) +
+  labs(
+    x = "Word Count",
+    y = "CCDF (%)"
+  )
+
+```
+
+## Figure 7(a and b) Plots
+CCDFs for (a) helpfulness ratio and (b) total votes.
+
+Figure 7a
+```{r figure-7a}
+
+ratings_2 <- ratings |> 
+    group_by(noteId) |> 
+    summarize(total_helpful = sum(helpful), total_unhelpful = sum(notHelpful)) |> 
+    mutate(total=total_helpful + total_unhelpful, ratio_helpful = total_helpful/total)
+
+ccdf_ratio <- inner_join(notes, ratings_2, by="noteId") |> 
+    mutate(classification = case_when(
+        classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+        classification == "NOT_MISLEADING" ~ "Not Misleading"
+    )) |>
+    group_by(classification) |> 
+    arrange(ratio_helpful) |> 
+    mutate(rank=min_rank(ratio_helpful), n=n(), ccdf=(1-((rank-1)/n)) *100) |>
+    filter(ccdf != "Invalid Number")
+
+ggplot(ccdf_ratio, aes(x=ratio_helpful, y=ccdf, color=classification)) +
+    geom_line() +
+    xlab("Ratio helpful") +
+    ylab("CCDF(%)")
+  
+```
+
+Figure 7b
+```{r figure-7b}
+
+ratings_with_votes_per_note <- ratings |>
+  select(noteId) |>
+  group_by(noteId) |>
+  summarize(votes_per_note = n())
+
+
+joined_raings_notes <- inner_join(notes, ratings_with_votes_per_note, by = "noteId")
+
+joined_raings_notes |>
+  select(classification, votes_per_note) |>
+  mutate(classification = case_when(
+    classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
+    classification == "NOT_MISLEADING" ~ "Not Misleading"
+  )) |>
+  group_by(classification) |>
+  arrange(votes_per_note) |>
+  mutate(n = n(),
+         rank = row_number(),
+         ccdf_percent = (1 - (rank - 1) / n) * 100) |>
+  filter(ccdf_percent > 0) |>
+  ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
+  geom_line() +
+  scale_y_log10(limits = c(0.01, 100), label=scales::comma) +
+  xlab("Votes (helpful & not helpful)") +
+  ylab("CCDF(%)")
+  
+```
+
+  ## Figure 8 Plot
+  Number of ratings per checkbox answer option in response to the prompt "What about this note was helpful to you?"
+
+```{r figure-8}
+# doesn't include Unbiased language as no one chooses this opiton
+ratings |>
+    select("helpfulOther", "helpfulInformative", "helpfulClear", "helpfulEmpathetic", "helpfulGoodSources", "helpfulUniqueContext", "helpfulAddressesClaim", "helpfulImportantContext")  |>
+    rename("Other" = "helpfulOther", "Informative" = "helpfulInformative", "Clear" = "helpfulClear", "Empathetic" = "helpfulEmpathetic", "Good sources" = "helpfulGoodSources", "Unique contex" = "helpfulUniqueContext", "Addresses claim" = "helpfulAddressesClaim", "Important context" = "helpfulImportantContext")|>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkblue") +
+    xlab("Number of Ratings") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 16000, by = 5000))
+
+```
+
+## Figure 9 Plot
+Number of ratings per checkbox answer option in response to the question "Help us understand why this note was unhelpful."
+
+```{r figure-9}
+# notHelpfulOpinionSpeculation is not included because no one chooses this option
+
+ratings |>
+    select("notHelpfulOther", "notHelpfulIncorrect", "notHelpfulSourcesMissingOrUnreliable", "notHelpfulOpinionSpeculationOrBias", "notHelpfulMissingKeyPoints", "notHelpfulOutdated", "notHelpfulHardToUnderstand", "notHelpfulArgumentativeOrBiased", "notHelpfulOffTopic", "notHelpfulSpamHarassmentOrAbuse", "notHelpfulIrrelevantSources")  |>
+     rename_with(~ .x |>
+    str_remove("notHelpful") |>
+    str_replace_all("([A-Z])", " \\1") |>
+    str_to_sentence()
+      ) |>
+    colSums() |>
+    tibble::enframe(name = "category", value = "total_count") |>
+    ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
+    geom_bar(stat = "identity", fill="darkred") +
+    xlab("Number of Ratings") +
+    ylab("") +
+    scale_x_continuous(breaks = seq(0, 16000, by = 5000))
+```
+
+## Figure 10 Plot
+Regressioin results for helpfulness ratio as dependent variables. Reported are standardized parameter estimates
+
+```{r load-tweet-data}
+source_tweets <- get(load("./data/source_tweets.Rdata"))
+```
+
+```{r logit-reg-features}
+#misleading
+  #classification in notes_classification_word_count
+#trustworthy sources
+  #trustworthySources in notes
+#text complexity -- not required 
+#sentiment -- not required
+#word count
+  #in notes_classification_word_count
+#account age
+  #source_account_created_at in source_tweets
+#followers
+  #source_followers_count in source_tweets
+#followees 
+  #source friend count in source_tweets
+#verified
+  #source_verified in source_tweets
+
+logit_reg_df <- ratings |> select(noteId, helpful)
+source_tweets_2 <- source_tweets |> select(noteId, source_account_created_at, source_followers_count, source_friends_count, source_verified )
+logit_reg_df <- inner_join(logit_reg_df, source_tweets_2, by="noteId")
+logit_reg_df <- inner_join(logit_reg_df, notes_classification_word_count)
+
+#rename to misleading
+logit_reg_df <- logit_reg_df |> rename(misleading = classification, verified = source_verified, followees = source_friends_count)
+#take source_account_created_at and make it age
+current_date <- Sys.Date()
+current_year <- format(current_date, "%Y")
+logit_reg_df <- logit_reg_df |> mutate(account_age = as.numeric(current_year) - as.numeric(year(logit_reg_df$source_account_created_at)))
+#drop na from all of them esp in source_tweets
+logit_reg_df <- drop_na(logit_reg_df)
+
+#made misleading into a binary variable
+logit_reg_df <- logit_reg_df |> mutate(misleading = if_else(misleading == "Misleading", 1, 0, ))
+#zstandardize all features
+logit_reg_df <- logit_reg_df |> mutate(across(c(source_followers_count,followees,word_count,account_age), scale))
+
+# fitting the model
+model <- glm(helpful ~ misleading + trustworthySources + word_count + account_age + followees + source_followers_count + verified, data=logit_reg_df, family=binomial)
+tidy(model)
+
+#add predictions to data for plotting
+logit_reg_df <- logit_reg_df |> mutate(predicted_prob = predict(model, type="response"))
+
+```
+
+
+```{r figure-10}
+
+```

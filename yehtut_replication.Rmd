@@ -4,11 +4,12 @@
 
 library(here)
 library(readr)
-library(here)
 library(scales)
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
+library(broom)
+
 
 theme_set(theme_bw())
 
@@ -118,7 +119,7 @@ notes |>
 # generating word count from summary
 notes_classification_word_count <- notes |>
   mutate(word_count = str_count(summary, '\\w+')) |>
-  select(classification, word_count) |>
+  select(noteId, classification, word_count, trustworthySources) |>
   mutate(classification = case_when(
     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
     classification == "NOT_MISLEADING" ~ "Not Misleading"
@@ -264,24 +265,48 @@ ratings |>
 
 
 
+## Figure 10
+```{r figure-10}
+source_tweets <- get(load("./data/source_tweets.Rdata"))
+head(source_tweets)
+colnames(source_tweets)
 
 
+notes_classification_word_count
+
+filter_source_tweets <- source_tweets |>
+  select(noteId, source_account_created_at, source_followers_count, source_friends_count, source_verified)
+
+ratings_filter <- ratings |>
+  select(noteId, helpful)
+
+log_reg_df <- inner_join(notes_classification_word_count, filter_source_tweets, by="noteId")
+log_reg_df <- inner_join(log_reg_df, ratings_filter, by="noteId")
 
 
+colnames(log_reg_df)
+current_date <- Sys.Date()
+current_year <- format(current_date, "%Y")
+log_reg_df <- log_reg_df |> 
+  mutate(account_age = as.numeric(current_year) - as.numeric(year(log_reg_df$source_account_created_at))) |>
+  drop_na()
 
+log_reg_df |>
+  str()
+#rename to misleading
+log_reg_df <- log_reg_df |> rename(misleading = classification, verified = source_verified, followees = source_friends_count)
+#made misleading into a binary variable
+log_reg_df <- log_reg_df |> mutate(misleading = if_else(misleading == "Misleading", 1, 0, ))
+#zstandardize all features
+log_reg_df <- log_reg_df |> mutate(across(c(source_followers_count,followees,word_count,account_age), scale))
 
+ 
 
-
-
-
-
-
-
-
-
-
-
-
+# fitting model
+model <- glm(helpful ~ misleading + trustworthySources + word_count + account_age + followees + source_followers_count + verified, data=log_reg_df, family=binomial)
+summary(model)
+tidy(model)
+```
 
 
 
