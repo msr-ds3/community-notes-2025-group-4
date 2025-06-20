@@ -300,6 +300,7 @@ plot_data <- data.frame(coef_names, coef_values, se_vector)
 ggplot(plot_data, aes(x=coef_names, y=coef_values)) +
   geom_pointrange(aes(ymin=coef_values - se_vector, ymax=coef_values + se_vector)) +
   scale_y_continuous(limits = c(-0.5, 1)) +
-  geom_abline(slope = 0, intercept = 0, linetype = "dashed")
+  geom_abline(slope = 0, intercept = 0, linetype = "dashed") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
