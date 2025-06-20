@@ -191,7 +191,15 @@ coef_names <- coef_names[-1]
 
 plot_data <- data.frame(coef_names, coef_values, se_vector)
 ggplot(plot_data, aes(x=coef_names, y=coef_values)) +
-  geom_pointrange(aes(ymin=coef_values - se_vector, ymax=coef_values + se_vector)) +
-  geom_line(color = "green") 
+  geom_pointrange(aes(ymin=coef_values - se_vector, ymax=coef_values + se_vector))
 
 ```
+
+# Extensions/ Question 4 Answer
+ 1. From here think about extensions to the article. Could you have approached this problem differently with the same data? 
+ Are there other ways to plot the same information? Or can you reproduce a version of the Birdwatch algorithm from
+  [this paper](https://arxiv.org/pdf/2210.15723)? Each group will probably come up with different questions to ask of the data. 
+  Write down the questions your group is interested in along with a plan for how you can tackle them with the data you have.
+
+the original findings of the paper -- Users more frequently file birdwatch notes for misleading than not misleading tweets, birdwatch notes are more helpful to tohher users if they link to trustworthy sources and use a positive sentiment. AND the social influence of the author is associated with differences in the lelvel of user consensus. 
+for influential users less oncsensus incorrect and argumentative  
