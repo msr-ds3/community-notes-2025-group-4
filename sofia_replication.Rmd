@@ -175,15 +175,23 @@ ggplot(plot_data, aes(x=K, y=avg_validate_err)) +
   geom_pointrange(aes(ymin=avg_validate_err - se_validate_err,
                       ymax=avg_validate_err + se_validate_err,
                       color=avg_validate_err == min(avg_validate_err))) +
-  geom_line(color = "red") +
+  geom_line(color = "red") + #uhhhh idk if this is good enough
   scale_x_continuous(breaks=1:12) +
   theme(legend.position="none") +
   xlab('Polynomial Degree') +
   ylab('RMSE on validation data')
 
 ```{r-plot10}
-coef_vector <- coef(summary(model))[, "Estimate"]
+coef_values <- coef(summary(model))[, "Estimate"]
 se_vector <- summary(model)$coefficients[, "Std. Error"]
+coef_values <- coef_values[-1]
+se_vector <- se_vector[-1]
 coef_names <- names(coef(model))
-plot_data <- data.frame(coef_names, )
+coef_names <- coef_names[-1]
+
+plot_data <- data.frame(coef_names, coef_values, se_vector)
+ggplot(plot_data, aes(x=coef_names, y=coef_values)) +
+  geom_pointrange(aes(ymin=coef_values - se_vector, ymax=coef_values + se_vector)) +
+  geom_line(color = "green") 
+
 ```
