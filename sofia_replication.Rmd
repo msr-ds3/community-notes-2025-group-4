@@ -154,10 +154,15 @@ log_reg_ds <- drop_na(log_reg_ds)
 
 #made misleading into a binary variable
 log_reg_ds <- log_reg_ds |> mutate(misleading = if_else(misleading == "Misleading", 1, 0, ))
+log_reg_ds$source_followers_count <- log(log_reg_ds$source_followers_count,10)
+log_reg_ds$followees <- log(log_reg_ds$followees, 10)
+#log transformed followees and followers
+
 #zstandardize all features
 log_reg_ds <- log_reg_ds |> mutate(across(c(source_followers_count,followees,word_count,account_age), scale))
 
 ```
+
 the actual modeling
 ```{r-logreg}
 library(broom)
@@ -202,11 +207,17 @@ ggplot(plot_data, aes(x=coef_names, y=coef_values)) +
   Write down the questions your group is interested in along with a plan for how you can tackle them with the data you have.
 
 original paper research questions -- specific reasons someone writes a note? how do misleading and nonmisleading notes differ in sentiment text characteristics
---- level of consensus among users associated with social influence of the author of the source tweet 
+--- level of consensus among users associated with social influence of the author of the source tweet . --- what characteristics of birdwatch notes are associated
+with being more helpful to raters 
+
+
 the original findings of the paper -- Users more frequently file birdwatch notes for misleading than not misleading tweets, birdwatch notes are more helpful to tohher users if they link to trustworthy sources and use a positive sentiment. AND the social influence of the author is associated with differences in the lelvel of user consensus. 
 for influential users less oncsensus incorrect and argumentative. 
 
-why are we doing log reg to predict a continous value ? nothing about this
+
+
+#### What We Did Differently and Why It May Be Better
+why are we doing log reg to predict a continous value ?
 
 so in our figure 10 on the logisitc regression, we predicted the probability that someone
 who filed a rating for the note voted helpful or not based on the characteristics of the source tweet and its author
@@ -216,4 +227,31 @@ of the tweet and its author. I think our regression is more impactful in determi
 and further finds what makes a user more or less likely to agree with a note.  this could allow us to include more detailed info on the rater themselves
 and attributes about their accoutn to see what type of person/account votes helpful or unhelpful
 
-i think also a plot that talks about the characterisitcs of the note that says 
+I think also a plot that talks about the characterisitcs of a note that users find helpful or not is more important than the questions
+asking why its helpgul because to me all these options in the poll "informative, clear, good sources, empathetic, unique context" are all vaguely the same
+like contains_url like the figure 5 plots but per rating....
+
+#### Addiitonal Research Question
+i guess a further research question could be to see if the notes affects how ppl tweets (twitter celebs + noncelebs who have gotten fact checked)
+do they correct their behavior, in Johnas presentation he talked about how notes terminates the spread of misinformation but does it change
+individual behavior and does it change the behavior of the tweeters or does it change other ppl who see them getting fact checked to prevent misinfo 
+being posted in the first place
+
+#### A Feature We Would Add To The Dataset
+So a potential feature to Birdwatch to add that would provide more depth into the ratings system would be for each user to be able to see 
+per note, the note author's profile of previous notes they have written and if they have been marked helpful or unhelpful. so when 
+a user is looking at a note and deciding to rate it or not, they can see if that note author is sus.
+
+Now this could lead to some bias where a user who has posted contraversial notes before may now never get a note put thorugh
+because ppl are put off with their past note history instead of the current note they posted. 
+
+
+According to figure 10 for regression it seems like linking to a trustworthy source is the most significant feature in getting a high 
+helpfulness ratio, so a potential guideline is maybe to have every note required to have an outside url so a user can look for themselves.
+
+I guess this is just a guess this is just a heuristic but to me the only way to truly verify a tweet is real is  to look at a source, 
+not someone tweeting about the source or sharing their interpretation of the topic. so maybe we could use an llm (like grok) to summarize the source 
+and see if it matches up with what the note says an extra check to see if the note is helpful or not? so u dont have to @ grok 
+
+#### How We Would Plot This Data Differently
+
