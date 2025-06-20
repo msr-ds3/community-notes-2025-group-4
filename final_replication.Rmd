@@ -20,6 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Loading notes and ratings
 ```{r load-counts}
+# Loading notes and ratings data from data folder
 notes <- read_tsv("./data/notes.tsv")
 ratings <- read_tsv("./data/ratings.tsv")
 ```
@@ -30,17 +31,23 @@ In notes, there are `r nrow(notes)` rows and in ratings, there are `r nrow(ratin
 Number of users who responded "Yes" to the question "Did you link to sources you believe most people would consider trustworthy?"
 
 ```{r data-cleaning}
+# convert to a datetime format from milliseconds
 notes <- notes |> 
-    mutate(datetime = as.POSIXct(createdAtMillis / 1000, origin = "1970-01-01", tz = "UTC")) #convert to a datetime format from milliseconds
+    mutate(datetime = as.POSIXct(createdAtMillis / 1000, origin = "1970-01-01", tz = "UTC"))
+# making is_misleading columns based on the columns that starts with misleading
 notes <- notes |> 
     mutate(is_misleading = (misleadingOther == 1 | misleadingFactualError == 1 | misleadingManipulatedMedia ==1 | misleadingOutdatedInformation ==1 | misleadingMissingImportantContext == 1 | misleadingUnverifiedClaimAsFact == 1 | misleadingSatire == 1 ) )
+# making is_notmisleading columns based on the columns that starts with notMisleading
 notes <- notes |>
      mutate(is_notmisleading = (notMisleadingOther ==1 | notMisleadingFactuallyCorrect==1 | notMisleadingOutdatedButNotWhenWritten == 1 | notMisleadingClearlySatire==1 | notMisleadingPersonalOpinion ==1))
 ```
 
 ```{r figure-2}
+# making trustworthySources as a categorical value
 notes$trustworthySources <- as.factor(notes$trustworthySources)
+
 labels <- c("Misleading", "Not Misleading")
+# making the figure 2 plot
 ggplot(notes, aes(x = is_misleading, fill = trustworthySources)) +
   geom_bar(stat = "count", position = "stack") +
   coord_flip() +
@@ -58,7 +65,9 @@ Number of Birdwatch notes per checkbox answer option in response to the question
 
 notes |>
     select("misleadingOther", "misleadingFactualError", "misleadingManipulatedMedia", "misleadingOutdatedInformation","misleadingMissingImportantContext", "misleadingUnverifiedClaimAsFact", "misleadingSatire")  |>
+    # rename column names so that it appears nicely on the graph
     rename("Other" = "misleadingOther", "Factual error" = "misleadingFactualError", "Manipulated media" = "misleadingManipulatedMedia", "Outdated information" = "misleadingOutdatedInformation", "Missing important contex" = "misleadingMissingImportantContext", "Unverified claim as fact" = "misleadingUnverifiedClaimAsFact", "Satire" = "misleadingSatire")|>
+    # since the columns are 1 and 0, add all the value in the columns to get how many are one or true.
     colSums() |>
     tibble::enframe(name = "category", value = "total_count") |>
     ggplot(aes(y =reorder(category, total_count, FUN = sum, decreasing = FALSE), x = total_count)) +
@@ -93,8 +102,11 @@ CCDFs for word count in text explanations of Birdwatch notes.
 ```{r figure-5c}
 # generating word count from summary (add noteId and trustworthySources for the usage of plot 10)
 notes_classification_word_count <- notes |>
+  # we don't know excatly how author counts the words or what text mining pipeline he use
+  # so, we just use str_count from tidyverse library and we get similar results
   mutate(word_count = str_count(summary, '\\w+')) |>
   select(noteId, classification, word_count, trustworthySources) |>
+  # rename misleading and not misleading to appear nice in the plot
   mutate(classification = case_when(
     classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
     classification == "NOT_MISLEADING" ~ "Not Misleading"
@@ -125,11 +137,12 @@ CCDFs for (a) helpfulness ratio and (b) total votes.
 Figure 7a
 ```{r figure-7a}
 
+# find the total number of helpful and not helpful and find the helpfulness ratio
 ratings_2 <- ratings |> 
     group_by(noteId) |> 
     summarize(total_helpful = sum(helpful), total_unhelpful = sum(notHelpful)) |> 
     mutate(total=total_helpful + total_unhelpful, ratio_helpful = total_helpful/total)
-
+# find the ccdf percent using rank method
 ccdf_ratio <- inner_join(notes, ratings_2, by="noteId") |> 
     mutate(classification = case_when(
         classification == "MISINFORMED_OR_POTENTIALLY_MISLEADING" ~ "Misleading",
@@ -137,7 +150,9 @@ ccdf_ratio <- inner_join(notes, ratings_2, by="noteId") |>
     )) |>
     group_by(classification) |> 
     arrange(ratio_helpful) |> 
-    mutate(rank=min_rank(ratio_helpful), n=n(), ccdf=(1-((rank-1)/n)) *100) |>
+    mutate(rank = min_rank(ratio_helpful), 
+           n = n(), 
+           ccdf = (1 - ((rank - 1) / n)) * 100) |>
     filter(ccdf != "Invalid Number")
 
 ggplot(ccdf_ratio, aes(x=ratio_helpful, y=ccdf, color=classification)) +
@@ -169,7 +184,6 @@ joined_raings_notes |>
   mutate(n = n(),
          rank = row_number(),
          ccdf_percent = (1 - (rank - 1) / n) * 100) |>
-  filter(ccdf_percent > 0) |>
   ggplot(aes(x = votes_per_note, y = ccdf_percent, color = classification)) +
   geom_line() +
   scale_y_log10(limits = c(0.01, 100), label=scales::comma) +
@@ -201,7 +215,7 @@ Number of ratings per checkbox answer option in response to the question "Help u
 
 ```{r figure-9}
 # notHelpfulOpinionSpeculation is not included because no one chooses this option
-
+# here we use string methods to formate the column names
 ratings |>
     select("notHelpfulOther", "notHelpfulIncorrect", "notHelpfulSourcesMissingOrUnreliable", "notHelpfulOpinionSpeculationOrBias", "notHelpfulMissingKeyPoints", "notHelpfulOutdated", "notHelpfulHardToUnderstand", "notHelpfulArgumentativeOrBiased", "notHelpfulOffTopic", "notHelpfulSpamHarassmentOrAbuse", "notHelpfulIrrelevantSources")  |>
      rename_with(~ .x |>
@@ -222,6 +236,7 @@ ratings |>
 Regressioin results for helpfulness ratio as dependent variables. Reported are standardized parameter estimates
 
 ```{r load-tweet-data}
+# loading source tweets from the data folder
 source_tweets <- get(load("./data/source_tweets.Rdata"))
 ```
 
@@ -273,5 +288,18 @@ logit_reg_df <- logit_reg_df |> mutate(predicted_prob = predict(model, type="res
 
 
 ```{r figure-10}
+# get the estimate and std error from the model
+coef_values <- coef(summary(model))[, "Estimate"]
+se_vector <- summary(model)$coefficients[, "Std. Error"]
+coef_values <- coef_values[-1]
+se_vector <- se_vector[-1]
+coef_names <- names(coef(model))
+coef_names <- coef_names[-1]
+
+plot_data <- data.frame(coef_names, coef_values, se_vector)
+ggplot(plot_data, aes(x=coef_names, y=coef_values)) +
+  geom_pointrange(aes(ymin=coef_values - se_vector, ymax=coef_values + se_vector)) +
+  scale_y_continuous(limits = c(-0.5, 1)) +
+  geom_abline(slope = 0, intercept = 0, linetype = "dashed")
 
 ```
